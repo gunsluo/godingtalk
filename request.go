@@ -2,8 +2,6 @@ package dingtalk
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,38 +11,58 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 )
 
-func (dtc *DingTalkClient) httpRPC(path string, params url.Values, requestData interface{}, responseData Unmarshallable, isvGetCInfo ...interface{}) error {
-	if dtc.DevType == "company" {
-		if dtc.AccessToken != "" {
+func (dtc *DingTalkClient) httpIsv(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
+	if params == nil {
+		params = url.Values{}
+	}
+
+	switch path {
+	case "service/get_corp_token":
+	case "service/get_suite_token":
+	default:
+		suiteAccessToken, err := dtc.GetAndRefreshSuiteAccessToken()
+		if err != nil {
+			return err
+		}
+		if params.Get("suite_access_token") == "" {
+			params.Set("suite_access_token", suiteAccessToken)
+		}
+	}
+	/*
+		switch path {
+		case "service/get_corp_token":
 			if params == nil {
 				params = url.Values{}
 			}
-			if params.Get("access_token") == "" {
-				params.Set("access_token", dtc.AccessToken)
+			if params.Get("accessKey") == "" {
+				params.Set("accessKey", dtc.DTConfig.SuiteKey)
 			}
-		}
-	}
-	if dtc.DevType == "isv" {
-		cur := isvGetCInfo[0]
-		switch v := cur.(type) {
-		case *DTIsvGetCompanyInfo:
-			switch path {
-			case "service/get_permanent_code", "service/activate_suite", "service/get_corp_token", "service/get_auth_info":
-				if dtc.SuiteAccessToken != "" {
-					if params == nil {
-						params = url.Values{}
-					}
-					if params.Get("suite_access_token") == "" {
-						params.Set("suite_access_token", dtc.SuiteAccessToken)
-					}
+
+			var suiteTicket string
+			if suiteTicket != "" {
+				if params.Get("suiteTicket") == "" {
+					params.Set("suiteTicket", suiteTicket)
 				}
-			default:
+
+				timestamp := fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
+				signature := signatureNoSign(timestamp+"\n"+suiteTicket, dtc.DTConfig.SNSSecret)
+				params.Set("signature", signature)
+			}
+		case "service/get_permanent_code", "service/activate_suite", "service/get_auth_info":
+			if dtc.SuiteAccessToken != "" {
+				if params == nil {
+					params = url.Values{}
+				}
+				if params.Get("suite_access_token") == "" {
+					params.Set("suite_access_token", dtc.SuiteAccessToken)
+				}
+			}
+		default:
+			cur := isvGetCInfo[0]
+			switch v := cur.(type) {
+			case *DTIsvGetCompanyInfo:
 				if v.AuthAccessToken != "" {
 					if params == nil {
 						params = url.Values{}
@@ -53,140 +71,19 @@ func (dtc *DingTalkClient) httpRPC(path string, params url.Values, requestData i
 						params.Set("access_token", v.AuthAccessToken)
 					}
 				}
-			}
-		default:
-			panic(errors.New("ERROR: *DTIsvGetCompanyInfo Error"))
-		}
-	}
-	if dtc.DevType == "personalMini"{
-		if dtc.SNSAccessToken != "" && path != "sns/getuserinfo" {
-			if params == nil {
-				params = url.Values{}
-			}
-			if params.Get("access_token") == "" {
-				params.Set("access_token", dtc.SNSAccessToken)
+			default:
+				panic(errors.New("ERROR: *DTIsvGetCompanyInfo Error"))
 			}
 		}
-	}
+	*/
+
 	return dtc.httpRequest("oapi", path, params, requestData, responseData)
-}
-
-func (dtc *DingTalkClient) httpSNS(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
-	if dtc.SNSAccessToken != "" && path != "sns/getuserinfo" {
-		if params == nil {
-			params = url.Values{}
-		}
-		if params.Get("access_token") == "" {
-			params.Set("access_token", dtc.SNSAccessToken)
-		}
-	}
-	return dtc.httpRequest("oapi", path, params, requestData, responseData)
-}
-
-func (dtc *DingTalkClient) httpSSO(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
-	if dtc.SSOAccessToken != "" {
-		if params == nil {
-			params = url.Values{}
-		}
-		if params.Get("access_token") == "" {
-			params.Set("access_token", dtc.SSOAccessToken)
-		}
-	}
-	return dtc.httpRequest("oapi", path, params, requestData, responseData)
-}
-
-func (dtc *DingTalkClient) httpTOP(requestData interface{}, responseData interface{}) error {
-	var params []string
-	var paramsJoin string
-	var cipher []byte
-	var cipherString string
-	if body, ok := requestData.(TopMapRequest); ok {
-		body["sign_method"] = dtc.TopConfig.TopSignMethod
-		if dtc.DevType == "company" {
-			body["session"] = dtc.AccessToken
-		}
-		body["format"] = dtc.TopConfig.TopFormat
-		body["v"] = dtc.TopConfig.TopV
-		timestamp := time.Now().Unix()
-		tm := time.Unix(timestamp, 0)
-		body["timestamp"] = tm.Format("2006-01-02 03:04:05 PM")
-		if dtc.TopConfig.TopFormat == "json" {
-			body["simplify"] = dtc.TopConfig.TopSimplify
-		}
-		params = sortParamsKey(body)
-		paramsJoin = strings.Join(params, "")
-		if dtc.TopConfig.TopSignMethod == signMD5 {
-			paramsJoin = dtc.TopConfig.TopSecret + paramsJoin + dtc.TopConfig.TopSecret
-			cipher = encryptMD5(paramsJoin)
-		}
-		if dtc.TopConfig.TopSignMethod == signHMAC {
-			cipher = encryptHMAC(paramsJoin, dtc.TopConfig.TopSecret)
-		}
-		cipherString = byteToHex(cipher)
-		body["sign"] = cipherString
-		fmt.Printf("Top Params=%s\n", body)
-		return dtc.httpRequest("tapi", nil, addPostBody(body), nil, responseData)
-	}
-	return errors.New("requestData Not TopMapRequest Type")
-}
-
-func addPostBody(topMap TopMapRequest) url.Values {
-	body := url.Values{}
-	for k, v := range topMap {
-		switch v.(type) {
-		case []string:
-			for _, h := range v.([]string) {
-				body.Add(k, h)
-			}
-		case []int:
-			for _, h := range v.([]int) {
-				body.Add(k, string(h))
-			}
-		default:
-			body.Add(k, fmt.Sprintf("%s", v))
-		}
-	}
-	return body
-}
-
-func encryptMD5(paramsJoin string) []byte {
-	hMd5 := md5.New()
-	hMd5.Write([]byte(paramsJoin))
-	return hMd5.Sum(nil)
-}
-
-func encryptHMAC(paramsJoin string, secret string) []byte {
-	hHmac := hmac.New(md5.New, []byte(secret))
-	hHmac.Write([]byte(paramsJoin))
-	return hHmac.Sum([]byte(""))
-}
-
-func byteToHex(data []byte) string {
-	buffer := new(bytes.Buffer)
-	for _, b := range data {
-		s := strconv.FormatInt(int64(b&0xff), 16)
-		if len(s) == 1 {
-			buffer.WriteString("0")
-		}
-		buffer.WriteString(strings.ToUpper(s))
-	}
-	return buffer.String()
-}
-
-func sortParamsKey(topParams TopMapRequest) []string {
-	var t []string
-	keys := topParams.keys()
-	sort.Strings(keys)
-	for _, k := range keys {
-		t = append(t, k+fmt.Sprintf("%s", topParams[k]))
-	}
-	return t
 }
 
 func (dtc *DingTalkClient) httpRequest(tagType string, path interface{}, params url.Values, requestData interface{}, responseData interface{}) error {
 	var request *http.Request
 	var requestUrl string
-	client := dtc.HTTPClient
+	client := dtc.httpClient
 
 	if tagType == "oapi" {
 		requestUrl = OAPIURL + path.(string) + "?" + params.Encode()
@@ -221,9 +118,10 @@ func (dtc *DingTalkClient) httpRequest(tagType string, path interface{}, params 
 		}
 	}
 	if tagType == "tapi" {
-		requestUrl = TOPAPIURL
-		request, _ = http.NewRequest("POST", requestUrl, strings.NewReader(params.Encode()))
-		request.Header.Set("Content-Type", typeForm+"; charset=UTF-8")
+		requestUrl = TOPAPIURL + path.(string) + "?" + params.Encode()
+		d, _ := json.Marshal(requestData)
+		request, _ = http.NewRequest("POST", requestUrl, bytes.NewReader(d))
+		request.Header.Set("Content-Type", typeJSON+"; charset=UTF-8")
 	}
 	resp, err := client.Do(request)
 	if err != nil {
