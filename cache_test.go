@@ -5,32 +5,41 @@ import (
 	"time"
 )
 
-type mockExpirable struct {
-	Token     string `json:"token"`
-	ExpiresIn int    `json:"expires_in"`
-	Created   int64  `json:"created"`
-}
-
-func (m *mockExpirable) IsExpired() bool {
-	return time.Now().Unix() > m.Created+int64(m.ExpiresIn-60)
-}
-
 func TestCache(t *testing.T) {
 	now := time.Now()
 	cases := []struct {
-		e      *mockExpirable
+		e      *KVExpirable
 		hasErr bool
 	}{
 		{
-			e: &mockExpirable{
-				Token:     "token",
+			e: &KVExpirable{
+				Key:       "key1",
+				Value:     "token",
 				ExpiresIn: 100,
 				Created:   now.Unix(),
 			},
 		},
 		{
-			e: &mockExpirable{
-				Token:     "token",
+			e: &KVExpirable{
+				Key:       "key2",
+				Value:     "token",
+				ExpiresIn: 100,
+				Created:   now.Unix(),
+			},
+		},
+		{
+			e: &KVExpirable{
+				Key:       "key1",
+				Value:     "token",
+				ExpiresIn: 10,
+				Created:   now.Unix(),
+			},
+			hasErr: true,
+		},
+		{
+			e: &KVExpirable{
+				Key:       "key2",
+				Value:     "token",
 				ExpiresIn: 10,
 				Created:   now.Unix(),
 			},
@@ -44,14 +53,18 @@ func TestCache(t *testing.T) {
 			t.Fatalf("set cache %v", err)
 		}
 
-		var n mockExpirable
-		err := cache.Get(&n)
+		n, err := cache.Get(c.e.Key)
 		hasErr := err != nil
 		if c.hasErr != hasErr {
 			t.Fatalf("get cache got %v, expected %v", hasErr, c.hasErr)
 		}
-		if err != nil && c.e.Token != n.Token {
-			t.Fatalf("get cache got %v, expected %v", n.Token, c.e.Token)
+		if err != nil && c.e.Value != n.Value {
+			t.Fatalf("get cache got %v, expected %v", n.Value, c.e.Value)
 		}
+	}
+
+	_, err := cache.Get("nokey")
+	if err == nil {
+		t.Fatal("should be get an error")
 	}
 }

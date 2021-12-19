@@ -1,6 +1,8 @@
 package dingtalk
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type Biz2Data struct {
 	SyncAction  string `json:"syncAction"`
@@ -46,11 +48,11 @@ type BizAuthInfo struct {
 }
 
 type BizAgent struct {
-	AdminList string `json:"admin_list"`
-	AgentName string `json:"agent_name"`
-	AgentId   string `json:"agentid"`
-	AppId     string `json:"appid"`
-	LogoUrl   string `json:"logo_url"`
+	AdminList []string `json:"admin_list"`
+	AgentName string   `json:"agent_name"`
+	AgentId   int      `json:"agentid"`
+	AppId     int      `json:"appid"`
+	LogoUrl   string   `json:"logo_url"`
 }
 
 type BizAuthScope struct {

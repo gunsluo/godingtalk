@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -163,4 +165,23 @@ func randomString(n int, alphabets ...byte) string {
 		}
 	}
 	return string(bytes)
+}
+
+func hmacSha256(data string, secret string) []byte {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(data))
+
+	return h.Sum(nil)
+}
+
+func signatureNoSign(data string, secret string) string {
+	signBytes := hmacSha256(data, secret)
+	// it will be url encoded later
+	return base64.StdEncoding.EncodeToString(signBytes)
+	//signature := base64.StdEncoding.EncodeToString(signBytes)
+	//return url.QueryEscape(signature)
+}
+
+func signatureThirdParty(timestamp, suiteTicket string, secret string) string {
+	return signatureNoSign(timestamp+"\n"+suiteTicket, secret)
 }

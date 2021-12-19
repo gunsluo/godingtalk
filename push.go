@@ -55,7 +55,7 @@ func (b *BizItem) UnmarshalJSON(data []byte) error {
 	b.CorpId = tmpBizItem.CorpId
 	b.Status = tmpBizItem.Status
 
-	if fn, ok := bizTypesUnmarshalJSONFuncs[b.BizType]; ok {
+	if fn, ok := bizTypesUnmarshalJSONFuncs[tmpBizItem.BizType]; ok {
 		if d, err := fn([]byte(tmpBizItem.BizData)); err == nil {
 			b.BizData = d
 		} else {

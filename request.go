@@ -10,8 +10,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"reflect"
+	"time"
 )
+
+func (dtc *DingTalkClient) httpRPC(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
+	return dtc.httpRequest("oapi", path, params, requestData, responseData)
+}
 
 func (dtc *DingTalkClient) httpIsv(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
 	if params == nil {
@@ -20,7 +24,14 @@ func (dtc *DingTalkClient) httpIsv(path string, params url.Values, requestData i
 
 	switch path {
 	case "service/get_corp_token":
+		timestamp := fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
+		suiteTicket := dtc.GetSuiteTicket()
+		signature := signatureThirdParty(timestamp, suiteTicket, dtc.getAccessSecret())
+		params.Set("timestamp", timestamp)
+		params.Set("signature", signature)
+		params.Set("suiteTicket", suiteTicket)
 	case "service/get_suite_token":
+		// nothing
 	default:
 		suiteAccessToken, err := dtc.GetAndRefreshSuiteAccessToken()
 		if err != nil {
@@ -30,54 +41,35 @@ func (dtc *DingTalkClient) httpIsv(path string, params url.Values, requestData i
 			params.Set("suite_access_token", suiteAccessToken)
 		}
 	}
-	/*
-		switch path {
-		case "service/get_corp_token":
-			if params == nil {
-				params = url.Values{}
-			}
-			if params.Get("accessKey") == "" {
-				params.Set("accessKey", dtc.DTConfig.SuiteKey)
-			}
-
-			var suiteTicket string
-			if suiteTicket != "" {
-				if params.Get("suiteTicket") == "" {
-					params.Set("suiteTicket", suiteTicket)
-				}
-
-				timestamp := fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
-				signature := signatureNoSign(timestamp+"\n"+suiteTicket, dtc.DTConfig.SNSSecret)
-				params.Set("signature", signature)
-			}
-		case "service/get_permanent_code", "service/activate_suite", "service/get_auth_info":
-			if dtc.SuiteAccessToken != "" {
-				if params == nil {
-					params = url.Values{}
-				}
-				if params.Get("suite_access_token") == "" {
-					params.Set("suite_access_token", dtc.SuiteAccessToken)
-				}
-			}
-		default:
-			cur := isvGetCInfo[0]
-			switch v := cur.(type) {
-			case *DTIsvGetCompanyInfo:
-				if v.AuthAccessToken != "" {
-					if params == nil {
-						params = url.Values{}
-					}
-					if params.Get("access_token") == "" {
-						params.Set("access_token", v.AuthAccessToken)
-					}
-				}
-			default:
-				panic(errors.New("ERROR: *DTIsvGetCompanyInfo Error"))
-			}
-		}
-	*/
 
 	return dtc.httpRequest("oapi", path, params, requestData, responseData)
+}
+
+func (dtc *DingTalkClient) httpSNS(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
+	switch path {
+	case "sns/getuserinfo_bycode":
+		timestamp := fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
+		signature := signatureNoSign(timestamp, dtc.getAccessSecret())
+		params.Set("timestamp", timestamp)
+		params.Set("signature", signature)
+	default:
+	}
+
+	return dtc.httpRequest("oapi", path, params, requestData, responseData)
+}
+
+func (dtc *DingTalkClient) httpTOP(path, authCorpId string, params url.Values, requestData interface{}, responseData interface{}) error {
+	if params == nil {
+		params = url.Values{}
+	}
+
+	corpAccessToken, err := dtc.IsvGetAndRefreshCorpAccessToken(authCorpId)
+	if err != nil {
+		return err
+	}
+	params.Set("access_token", corpAccessToken)
+
+	return dtc.httpRequest("tapi", path, params, requestData, responseData)
 }
 
 func (dtc *DingTalkClient) httpRequest(tagType string, path interface{}, params url.Values, requestData interface{}, responseData interface{}) error {
@@ -134,29 +126,45 @@ func (dtc *DingTalkClient) httpRequest(tagType string, path interface{}, params 
 	contentType := resp.Header.Get("Content-Type")
 	pos := len(typeJSON)
 
-	if tagType == "oapi" {
-		if len(contentType) >= pos && contentType[0:pos] == typeJSON {
-			if content, err := ioutil.ReadAll(resp.Body); err == nil {
-				json.Unmarshal(content, responseData)
-				switch responseData.(type) {
-				case Unmarshallable:
-					resData := responseData.(Unmarshallable)
-					return resData.checkError()
-				}
-			}
-		} else {
-			switch v := responseData.(type) {
-			case *MediaDownloadFileResponse:
-				io.Copy(v.Writer, resp.Body)
-			}
-		}
-	}
-	if tagType == "tapi" {
+	//if tagType == "oapi" {
+	if len(contentType) >= pos && contentType[0:pos] == typeJSON {
 		if content, err := ioutil.ReadAll(resp.Body); err == nil {
-			v := reflect.ValueOf(responseData)
-			v = v.Elem()
-			v.SetBytes(content)
+			json.Unmarshal(content, responseData)
+			switch responseData.(type) {
+			case Unmarshallable:
+				resData := responseData.(Unmarshallable)
+				return resData.checkError()
+			}
+		}
+	} else {
+		switch v := responseData.(type) {
+		case *MediaDownloadFileResponse:
+			io.Copy(v.Writer, resp.Body)
 		}
 	}
+	//}
+
 	return err
+}
+
+func (dtc *DingTalkClient) getAccessKey() string {
+	switch dtc.clientType {
+	case ISV:
+		return dtc.config.suiteKey
+	case CORP:
+		return dtc.config.appKey
+	}
+
+	return ""
+}
+
+func (dtc *DingTalkClient) getAccessSecret() string {
+	switch dtc.clientType {
+	case ISV:
+		return dtc.config.suiteSecret
+	case CORP:
+		return dtc.config.appSecret
+	}
+
+	return ""
 }

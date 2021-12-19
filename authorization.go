@@ -10,13 +10,19 @@ type SuiteAccessTokenResponse struct {
 	ExpiresIn        int    `json:"expires_in"`
 }
 
+type ListUnactivateSuitesResponse struct {
+	OpenAPIResponse
+	AppId    int      `json:""`
+	CorpList []string `json:"corp_list"`
+	HasMore  bool     `json:"has_more"`
+}
+
 // 刷新并获取第三方企业应用的suite_access_token
 func (dtc *DingTalkClient) GetAndRefreshSuiteAccessToken() (string, error) {
 	dtc.suiteAccessTokenLocker.Lock()
 	defer dtc.suiteAccessTokenLocker.Unlock()
 
-	var suiteAccessToken StringExpirable
-	err := dtc.suiteAccessTokenCache.Get(&suiteAccessToken)
+	suiteAccessToken, err := dtc.cache.Get(KeySuiteAccessToken)
 	if err == nil {
 		return suiteAccessToken.Value, nil
 	}
@@ -26,10 +32,10 @@ func (dtc *DingTalkClient) GetAndRefreshSuiteAccessToken() (string, error) {
 		return "", err
 	}
 
-	err = dtc.suiteAccessTokenCache.Set(
-		NewStringExpirable(resp.SuiteAccessToken, resp.ExpiresIn),
+	err = dtc.cache.Set(
+		NewKVExpirable(KeySuiteAccessToken, resp.SuiteAccessToken, resp.ExpiresIn),
 	)
-	return suiteAccessToken.Value, err
+	return resp.SuiteAccessToken, err
 }
 
 // 获取第三方企业应用的suite_access_token
@@ -58,10 +64,19 @@ func (dtc *DingTalkClient) IsvActivateSuite(authCorpId string, permanentCode str
 	return data, err
 }
 
+// 获取应用未激活的企业列表
+func (dtc *DingTalkClient) IsvListUnactivateSuites() (ListUnactivateSuitesResponse, error) {
+	var data ListUnactivateSuitesResponse
+	requestData := map[string]string{
+		"app_id": dtc.config.appId,
+	}
+	err := dtc.httpIsv("service/get_unactive_corp", nil, requestData, &data)
+	return data, err
+}
+
 // get suite ticket
 func (dtc *DingTalkClient) GetSuiteTicket() string {
-	var suiteTicket StringExpirable
-	err := dtc.suiteTicketCache.Get(&suiteTicket)
+	suiteTicket, err := dtc.persist.Get(KeySuiteTicket)
 	if err != nil {
 		return ""
 	}
@@ -71,7 +86,7 @@ func (dtc *DingTalkClient) GetSuiteTicket() string {
 
 // set suite ticket
 func (dtc *DingTalkClient) SetSuiteTicket(suiteTicket string) error {
-	return dtc.suiteTicketCache.Set(
-		NewStringExpirable(suiteTicket, 18000),
+	return dtc.persist.Set(
+		NewKVExpirable(KeySuiteTicket, suiteTicket, 18000),
 	)
 }

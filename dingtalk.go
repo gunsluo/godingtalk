@@ -1,6 +1,7 @@
 package dingtalk
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -15,15 +16,17 @@ const (
 )
 
 type CorpConfig struct {
-	CorpId    string
-	ApiToken  string
-	AgentId   string
-	AppKey    string
-	AppSecret string
+	CorpId     string
+	CorpSecret string
+	ApiToken   string
+	AgentId    string
+	AppKey     string
+	AppSecret  string
 }
 
 type ISVConfig struct {
 	CorpId      string
+	CorpSecret  string
 	ApiToken    string
 	MiniAppId   string
 	AppId       string
@@ -35,16 +38,18 @@ type ISVConfig struct {
 }
 
 type PersonConfig struct {
-	CorpId    string
-	ApiToken  string
-	MiniAppId string
-	AppId     string
-	AppSecret string
+	CorpId     string
+	CorpSecret string
+	ApiToken   string
+	MiniAppId  string
+	AppId      string
+	AppSecret  string
 }
 
 type config struct {
-	corpId   string
-	apiToken string
+	corpId     string
+	corpSecret string // SSOSecret
+	apiToken   string
 
 	agentId string
 	appKey  string
@@ -65,34 +70,41 @@ type DingTalkClient struct {
 	config         config
 	httpClient     *http.Client
 	pushCryptoSuit *PushCryptoSuit
+	clientType     ClientType
 
-	/*
-		AccessToken           string
-		SSOAccessToken        string
-		SNSAccessToken        string
-		SuiteAccessToken      string
-		AccessTokenCache      Cache
-		TicketCache           Cache
-		SSOAccessTokenCache   Cache
-		SNSAccessTokenCache   Cache
-	*/
-	clientType ClientType
-
-	suiteAccessTokenCache  Cache
+	cache                  Cache
+	persist                Persist
 	suiteAccessTokenLocker sync.Mutex
-
-	suiteTicketCache Cache
 }
 
-func newDingTalkClient(clientType ClientType, cfg config) *DingTalkClient {
+type Option func(*options)
+
+func WithCache(cache Cache) Option {
+	return func(o *options) {
+		o.cache = cache
+	}
+}
+
+func WithPersist(persist Persist) Option {
+	return func(o *options) {
+		o.persist = persist
+	}
+}
+
+func newDingTalkClient(clientType ClientType, cfg config, opts ...Option) *DingTalkClient {
+	o := defaultOptions(clientType)
+	for _, opt := range opts {
+		opt(o)
+	}
+
 	c := &DingTalkClient{
 		config: cfg,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		clientType:            clientType,
-		suiteAccessTokenCache: NewFileCache(".suite_access_token"),
-		suiteTicketCache:      NewFileCache(".suite_ticket"),
+		clientType: clientType,
+		cache:      o.cache,
+		persist:    o.persist,
 	}
 
 	if cfg.aesKey != "" && cfg.token != "" {
@@ -106,9 +118,10 @@ func newDingTalkClient(clientType ClientType, cfg config) *DingTalkClient {
 	return c
 }
 
-func NewISVClient(cfg ISVConfig) *DingTalkClient {
+func NewISVClient(cfg ISVConfig, opts ...Option) *DingTalkClient {
 	return newDingTalkClient(ISV, config{
 		corpId:      cfg.CorpId,
+		corpSecret:  cfg.CorpSecret,
 		apiToken:    cfg.ApiToken,
 		token:       cfg.Token,
 		aesKey:      cfg.AESKey,
@@ -117,25 +130,39 @@ func NewISVClient(cfg ISVConfig) *DingTalkClient {
 		suiteId:     cfg.SuiteId,
 		suiteKey:    cfg.SuiteKey,
 		suiteSecret: cfg.SuiteSecret,
-	})
+	}, opts...)
 }
 
-func NewCorpClient(cfg CorpConfig) *DingTalkClient {
+func NewCorpClient(cfg CorpConfig, opts ...Option) *DingTalkClient {
 	return newDingTalkClient(CORP, config{
-		corpId:    cfg.CorpId,
-		apiToken:  cfg.ApiToken,
-		agentId:   cfg.AgentId,
-		appKey:    cfg.AppKey,
-		appSecret: cfg.AppSecret,
-	})
+		corpId:     cfg.CorpId,
+		corpSecret: cfg.CorpSecret,
+		apiToken:   cfg.ApiToken,
+		agentId:    cfg.AgentId,
+		appKey:     cfg.AppKey,
+		appSecret:  cfg.AppSecret,
+	}, opts...)
 }
 
-func NewPersonClient(cfg PersonConfig) *DingTalkClient {
+func NewPersonClient(cfg PersonConfig, opts ...Option) *DingTalkClient {
 	return newDingTalkClient(PERSON, config{
-		corpId:    cfg.CorpId,
-		apiToken:  cfg.ApiToken,
-		miniAppId: cfg.MiniAppId,
-		appId:     cfg.AppId,
-		appSecret: cfg.AppSecret,
-	})
+		corpId:     cfg.CorpId,
+		corpSecret: cfg.CorpSecret,
+		apiToken:   cfg.ApiToken,
+		miniAppId:  cfg.MiniAppId,
+		appId:      cfg.AppId,
+		appSecret:  cfg.AppSecret,
+	}, opts...)
+}
+
+type options struct {
+	cache   Cache
+	persist Persist
+}
+
+func defaultOptions(clientType ClientType) *options {
+	return &options{
+		cache:   NewFileCache(fmt.Sprintf(".dingtalk_cache_%d", clientType)),
+		persist: NewFileCache(fmt.Sprintf(".dingtalk_persist_%d", clientType)),
+	}
 }
