@@ -11,13 +11,13 @@ type GetCorpUserByUnionIdResult struct {
 	UserId      string `json:"userid"`
 }
 
-type GetCorpUserInfoByUserIdResponse struct {
+type GetCorpUserDetailByUserIdResponse struct {
 	OpenAPIResponse
-	RequestId string                        `json:"request_id"`
-	UserInfo  GetCorpUserInfoByUserIdResult `json:"result"`
+	RequestId string                          `json:"request_id"`
+	UserInfo  GetCorpUserDetailByUserIdResult `json:"result"`
 }
 
-type GetCorpUserInfoByUserIdResult struct {
+type GetCorpUserDetailByUserIdResult struct {
 	UserId               string       `json:"userid"`
 	Unionid              string       `json:"unionid"`
 	Name                 string       `json:"name"`
@@ -80,6 +80,22 @@ type UnionEmpMap struct {
 	CorpId string `json:"corp_id"`
 }
 
+type GetCorpUserInfoByCodeResponse struct {
+	OpenAPIResponse
+	RequestId string                      `json:"request_id"`
+	UserInfo  GetCorpUserInfoByCodeResult `json:"result"`
+}
+
+type GetCorpUserInfoByCodeResult struct {
+	UserId            string `json:"userid"`
+	DeviceId          string `json:"device_id"`
+	Sys               bool   `json:"sys"`
+	SysLevel          int    `json:"sys_level"`
+	AssociatedUnionid string `json:"associated_unionid"`
+	Unionid           string `json:"unionid"`
+	Name              string `json:"name"`
+}
+
 // 根据unionid获取组织用户userid
 func (dtc *DingTalkClient) GetCorpUserByUnionId(authCorpId, unionId string) (GetCorpUserByUnionIdResponse, error) {
 	var data GetCorpUserByUnionIdResponse
@@ -91,15 +107,26 @@ func (dtc *DingTalkClient) GetCorpUserByUnionId(authCorpId, unionId string) (Get
 	return data, err
 }
 
+// 通过免登码获取用户信息
+func (dtc *DingTalkClient) GetCorpUserInfoByCode(authCorpId, code string) (GetCorpUserInfoByCodeResponse, error) {
+	var data GetCorpUserInfoByCodeResponse
+	requestData := map[string]string{
+		"code": code,
+	}
+
+	err := dtc.httpTOP("v2/user/getuserinfo", authCorpId, nil, requestData, &data)
+	return data, err
+}
+
 // 根据userId获取组织用户详情
-func (dtc *DingTalkClient) GetCorpUserInfoByUserId(authCorpId, userId string, languages ...string) (GetCorpUserInfoByUserIdResponse, error) {
+func (dtc *DingTalkClient) GetCorpUserDetailByUserId(authCorpId, userId string, languages ...string) (GetCorpUserDetailByUserIdResponse, error) {
 	var language string
 	if len(languages) > 0 {
 		language = languages[0]
 	} else {
 		language = "zh_CN"
 	}
-	var data GetCorpUserInfoByUserIdResponse
+	var data GetCorpUserDetailByUserIdResponse
 	requestData := map[string]string{
 		"userid":   userId,
 		"language": language,

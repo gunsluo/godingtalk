@@ -87,6 +87,6 @@ func (dtc *DingTalkClient) GetSuiteTicket() string {
 // set suite ticket
 func (dtc *DingTalkClient) SetSuiteTicket(suiteTicket string) error {
 	return dtc.persist.Set(
-		NewKVExpirable(KeySuiteTicket, suiteTicket, 18000),
+		NewKVExpirable(KeySuiteTicket, suiteTicket, 18300),
 	)
 }
