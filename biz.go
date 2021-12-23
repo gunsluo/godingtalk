@@ -4,6 +4,15 @@ import (
 	"encoding/json"
 )
 
+const (
+	SyncActionOrgMicroAppRestore     = "org_micro_app_restore"
+	SyncActionOrgMicroAppStop        = "org_micro_app_stop"
+	SyncActionOrgMicroAppRemove      = "org_micro_app_remove"
+	SyncActionOrgMicroAppScopeUpdate = "org_micro_app_scope_update"
+	SyncActionOrgUpdate              = "org_update"
+	SyncActionOrgRemove              = "org_remove"
+)
+
 type Biz2Data struct {
 	SyncAction  string `json:"syncAction"`
 	SuiteTicket string `json:"suiteTicket"`
@@ -20,9 +29,21 @@ type Biz4Data struct {
 	AuthScope     BizAuthScope    `json:"auth_scope"`
 }
 
-type Biz16Data struct {
+type Biz7Data struct {
 	SyncAction string `json:"syncAction"`
-	SyncSeq    string `json:"syncSeq"`
+	AgentId    int    `json:"agentId"`
+}
+
+type Biz16Data struct {
+	SyncAction      string `json:"syncAction"`
+	Errcode         int    `json:"errcode"`
+	Errmsg          string `json:"errmsg"`
+	Corpid          string `json:"corpid"`
+	CorpName        string `json:"corp_name"`
+	AuthLevel       int    `json:"auth_level"`
+	Industry        string `json:"industry"`
+	IsAuthenticated bool   `json:"is_authenticated"`
+	CorpLogoUrl     string `json:"corp_logo_url"`
 }
 
 type BizAuthUserInfo struct {
@@ -31,7 +52,9 @@ type BizAuthUserInfo struct {
 
 type BizAuthCorpInfo struct {
 	CorpLogoURL     string `json:"corp_logo_url"`
+	CorpType        int    `json:"corp_type"`
 	CorpName        string `json:"corp_name"`
+	FullCorpName    string `json:"full_corp_name"`
 	CorpID          string `json:"corpid"`
 	Industry        string `json:"industry"`
 	InviteCode      string `json:"invite_code"`
@@ -78,6 +101,13 @@ var bizTypesUnmarshalJSONFuncs = map[int]func([]byte) (interface{}, error){
 	},
 	4: func(data []byte) (interface{}, error) {
 		var d Biz4Data
+		if err := json.Unmarshal([]byte(data), &d); err != nil {
+			return nil, err
+		}
+		return d, nil
+	},
+	7: func(data []byte) (interface{}, error) {
+		var d Biz7Data
 		if err := json.Unmarshal([]byte(data), &d); err != nil {
 			return nil, err
 		}
