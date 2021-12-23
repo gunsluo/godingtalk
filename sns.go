@@ -1,6 +1,9 @@
 package dingtalk
 
-import "net/url"
+import (
+	"context"
+	"net/url"
+)
 
 type SNSGetUserInfoByCodeResponse struct {
 	OpenAPIResponse
@@ -14,13 +17,13 @@ type SNSGetUserInfoByCode struct {
 	AuthHighLevel bool   `json:"main_org_auth_high_level"`
 }
 
-func (dtc *DingTalkClient) SNSGetUserInfoByCode(tmpAuthCode string) (SNSGetUserInfoByCodeResponse, error) {
+func (dtc *DingTalkClient) SNSGetUserInfoByCode(ctx context.Context, tmpAuthCode string) (SNSGetUserInfoByCodeResponse, error) {
 	var data SNSGetUserInfoByCodeResponse
 	params := url.Values{}
 	params.Add("accessKey", dtc.getAccessKey())
 	requestData := map[string]string{
 		"tmp_auth_code": tmpAuthCode,
 	}
-	err := dtc.httpSNS("sns/getuserinfo_bycode", params, requestData, &data)
+	err := dtc.httpSNS(ctx, "sns/getuserinfo_bycode", params, requestData, &data)
 	return data, err
 }

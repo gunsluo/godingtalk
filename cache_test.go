@@ -1,6 +1,7 @@
 package dingtalk
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -47,13 +48,14 @@ func TestCache(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	cache := NewFileCache(".mock_cache_file")
 	for _, c := range cases {
-		if err := cache.Set(c.e); err != nil {
+		if err := cache.Set(ctx, c.e); err != nil {
 			t.Fatalf("set cache %v", err)
 		}
 
-		n, err := cache.Get(c.e.Key)
+		n, err := cache.Get(ctx, c.e.Key)
 		hasErr := err != nil
 		if c.hasErr != hasErr {
 			t.Fatalf("get cache got %v, expected %v", hasErr, c.hasErr)
@@ -63,7 +65,7 @@ func TestCache(t *testing.T) {
 		}
 	}
 
-	_, err := cache.Get("nokey")
+	_, err := cache.Get(ctx, "nokey")
 	if err == nil {
 		t.Fatal("should be get an error")
 	}

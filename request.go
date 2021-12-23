@@ -2,6 +2,7 @@ package dingtalk
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,11 +14,11 @@ import (
 	"time"
 )
 
-func (dtc *DingTalkClient) httpRPC(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
-	return dtc.httpRequest("oapi", path, params, requestData, responseData)
+func (dtc *DingTalkClient) httpRPC(ctx context.Context, path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
+	return dtc.httpRequest(ctx, "oapi", path, params, requestData, responseData)
 }
 
-func (dtc *DingTalkClient) httpIsv(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
+func (dtc *DingTalkClient) httpIsv(ctx context.Context, path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
 	if params == nil {
 		params = url.Values{}
 	}
@@ -25,7 +26,7 @@ func (dtc *DingTalkClient) httpIsv(path string, params url.Values, requestData i
 	switch path {
 	case "service/get_corp_token":
 		timestamp := fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
-		suiteTicket := dtc.GetSuiteTicket()
+		suiteTicket := dtc.GetSuiteTicket(ctx)
 		signature := signatureThirdParty(timestamp, suiteTicket, dtc.getAccessSecret())
 		params.Set("timestamp", timestamp)
 		params.Set("signature", signature)
@@ -33,7 +34,7 @@ func (dtc *DingTalkClient) httpIsv(path string, params url.Values, requestData i
 	case "service/get_suite_token":
 		// nothing
 	default:
-		suiteAccessToken, err := dtc.GetAndRefreshSuiteAccessToken()
+		suiteAccessToken, err := dtc.GetAndRefreshSuiteAccessToken(ctx)
 		if err != nil {
 			return err
 		}
@@ -42,10 +43,10 @@ func (dtc *DingTalkClient) httpIsv(path string, params url.Values, requestData i
 		}
 	}
 
-	return dtc.httpRequest("oapi", path, params, requestData, responseData)
+	return dtc.httpRequest(ctx, "oapi", path, params, requestData, responseData)
 }
 
-func (dtc *DingTalkClient) httpSNS(path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
+func (dtc *DingTalkClient) httpSNS(ctx context.Context, path string, params url.Values, requestData interface{}, responseData Unmarshallable) error {
 	switch path {
 	case "sns/getuserinfo_bycode":
 		timestamp := fmt.Sprintf("%d", time.Now().UnixNano()/1000000)
@@ -55,24 +56,24 @@ func (dtc *DingTalkClient) httpSNS(path string, params url.Values, requestData i
 	default:
 	}
 
-	return dtc.httpRequest("oapi", path, params, requestData, responseData)
+	return dtc.httpRequest(ctx, "oapi", path, params, requestData, responseData)
 }
 
-func (dtc *DingTalkClient) httpTOP(path, authCorpId string, params url.Values, requestData interface{}, responseData interface{}) error {
+func (dtc *DingTalkClient) httpTOP(ctx context.Context, path, authCorpId string, params url.Values, requestData interface{}, responseData interface{}) error {
 	if params == nil {
 		params = url.Values{}
 	}
 
-	corpAccessToken, err := dtc.IsvGetAndRefreshCorpAccessToken(authCorpId)
+	corpAccessToken, err := dtc.IsvGetAndRefreshCorpAccessToken(ctx, authCorpId)
 	if err != nil {
 		return err
 	}
 	params.Set("access_token", corpAccessToken)
 
-	return dtc.httpRequest("tapi", path, params, requestData, responseData)
+	return dtc.httpRequest(ctx, "tapi", path, params, requestData, responseData)
 }
 
-func (dtc *DingTalkClient) httpRequest(tagType string, path interface{}, params url.Values, requestData interface{}, responseData interface{}) error {
+func (dtc *DingTalkClient) httpRequest(ctx context.Context, tagType string, path interface{}, params url.Values, requestData interface{}, responseData interface{}) error {
 	var request *http.Request
 	var requestUrl string
 	client := dtc.httpClient

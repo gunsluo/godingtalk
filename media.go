@@ -1,6 +1,7 @@
 package dingtalk
 
 import (
+	"context"
 	"io"
 )
 
@@ -24,7 +25,7 @@ type uploadFile struct {
 }
 
 // 上传媒体文件
-func (dtc *DingTalkClient) MediaUpload(mediaType string, fileName string, reader io.Reader) (MediaUploadResponse, error) {
+func (dtc *DingTalkClient) MediaUpload(ctx context.Context, mediaType string, fileName string, reader io.Reader) (MediaUploadResponse, error) {
 	var data MediaUploadResponse
 	var err error
 	// upload := &uploadFile{
@@ -39,7 +40,7 @@ func (dtc *DingTalkClient) MediaUpload(mediaType string, fileName string, reader
 }
 
 // 获取媒体文件
-func (dtc *DingTalkClient) MediaDownloadFile(mediaID string, write io.Writer) error {
+func (dtc *DingTalkClient) MediaDownloadFile(ctx context.Context, mediaID string, write io.Writer) error {
 	// var data MediaDownloadFileResponse
 	// data.MediaID = mediaID
 	// data.Writer = write

@@ -1,6 +1,7 @@
 package dingtalk
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -18,8 +19,8 @@ const (
 )
 
 type Cache interface {
-	Set(data *KVExpirable) error
-	Get(key string) (*KVExpirable, error)
+	Set(ctx context.Context, data *KVExpirable) error
+	Get(ctx context.Context, key string) (*KVExpirable, error)
 }
 
 type Persist = Cache
@@ -57,7 +58,7 @@ func NewFileCache(path string) *FileCache {
 	}
 }
 
-func (f *FileCache) Set(data *KVExpirable) error {
+func (f *FileCache) Set(ctx context.Context, data *KVExpirable) error {
 	f.locker.Lock()
 	defer f.locker.Unlock()
 
@@ -99,7 +100,7 @@ func (f *FileCache) Set(data *KVExpirable) error {
 	return nil
 }
 
-func (f *FileCache) Get(key string) (*KVExpirable, error) {
+func (f *FileCache) Get(ctx context.Context, key string) (*KVExpirable, error) {
 	f.locker.RLock()
 	defer f.locker.RUnlock()
 

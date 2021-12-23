@@ -1,5 +1,7 @@
 package dingtalk
 
+import "context"
+
 type GetCorpUserByUnionIdResponse struct {
 	OpenAPIResponse
 	RequestId string                     `json:"request_id"`
@@ -97,29 +99,29 @@ type GetCorpUserInfoByCodeResult struct {
 }
 
 // 根据unionid获取组织用户userid
-func (dtc *DingTalkClient) GetCorpUserByUnionId(authCorpId, unionId string) (GetCorpUserByUnionIdResponse, error) {
+func (dtc *DingTalkClient) GetCorpUserByUnionId(ctx context.Context, authCorpId, unionId string) (GetCorpUserByUnionIdResponse, error) {
 	var data GetCorpUserByUnionIdResponse
 	requestData := map[string]string{
 		"unionid": unionId,
 	}
 
-	err := dtc.httpTOP("user/getbyunionid", authCorpId, nil, requestData, &data)
+	err := dtc.httpTOP(ctx, "user/getbyunionid", authCorpId, nil, requestData, &data)
 	return data, err
 }
 
 // 通过免登码获取用户信息
-func (dtc *DingTalkClient) GetCorpUserInfoByCode(authCorpId, code string) (GetCorpUserInfoByCodeResponse, error) {
+func (dtc *DingTalkClient) GetCorpUserInfoByCode(ctx context.Context, authCorpId, code string) (GetCorpUserInfoByCodeResponse, error) {
 	var data GetCorpUserInfoByCodeResponse
 	requestData := map[string]string{
 		"code": code,
 	}
 
-	err := dtc.httpTOP("v2/user/getuserinfo", authCorpId, nil, requestData, &data)
+	err := dtc.httpTOP(ctx, "v2/user/getuserinfo", authCorpId, nil, requestData, &data)
 	return data, err
 }
 
 // 根据userId获取组织用户详情
-func (dtc *DingTalkClient) GetCorpUserDetailByUserId(authCorpId, userId string, languages ...string) (GetCorpUserDetailByUserIdResponse, error) {
+func (dtc *DingTalkClient) GetCorpUserDetailByUserId(ctx context.Context, authCorpId, userId string, languages ...string) (GetCorpUserDetailByUserIdResponse, error) {
 	var language string
 	if len(languages) > 0 {
 		language = languages[0]
@@ -132,6 +134,6 @@ func (dtc *DingTalkClient) GetCorpUserDetailByUserId(authCorpId, userId string, 
 		"language": language,
 	}
 
-	err := dtc.httpTOP("v2/user/get", authCorpId, nil, requestData, &data)
+	err := dtc.httpTOP(ctx, "v2/user/get", authCorpId, nil, requestData, &data)
 	return data, err
 }
