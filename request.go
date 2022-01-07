@@ -80,7 +80,7 @@ func (dtc *DingTalkClient) httpRequest(ctx context.Context, tagType string, path
 
 	if tagType == "oapi" {
 		requestUrl = OAPIURL + path.(string) + "?" + params.Encode()
-		fmt.Printf("requestUrl=%s\n", requestUrl)
+		//fmt.Printf("requestUrl=%s\n", requestUrl)
 		if requestData != nil {
 			switch v := requestData.(type) {
 			case *uploadFile:
